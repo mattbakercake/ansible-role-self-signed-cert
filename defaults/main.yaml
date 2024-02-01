@@ -1,0 +1,4 @@
+cert_dir: /etc/ssl/certs
+key_dir: /etc/ssl/private
+common_name: '{{ inventory_hostname }}'
+cert_length_days: '365'

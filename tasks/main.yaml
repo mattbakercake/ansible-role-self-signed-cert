@@ -1,0 +1,106 @@
+# access group
+- name: Ensure group "ssl-cert" exists
+  become: true
+  ansible.builtin.group:
+    name: ssl-cert
+    state: present
+
+# make sure system level directories exist
+- name: Create certificate directory
+  become: true
+  ansible.builtin.file:
+    path: "{{cert_dir}}"
+    state: directory
+    group: 'ssl-cert'
+
+- name: Create key directory
+  become: true
+  ansible.builtin.file:
+    path: "{{key_dir}}"
+    state: directory
+    group: 'ssl-cert'
+    mode: '0710'
+
+# Set up Certificate Authority for signing 
+- name: Create CA private key
+  become: true
+  community.crypto.openssl_privatekey:
+    path: "{{key_dir}}/ca.key"
+    size: 2048
+    type: RSA
+    group: 'ssl-cert'
+    mode: '0740'
+
+- name: check whether CA certificate exists
+  stat:
+    path: "{{cert_dir}}/ca.crt"
+  register: ca_cert
+
+- name: Create certificate signing request (CSR) for CA certificate
+  become: true
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: "{{key_dir}}/ca.key"
+    common_name: Ansible CA
+    use_common_name_for_san: true
+    basic_constraints:
+    - 'CA:TRUE'
+    basic_constraints_critical: true
+    key_usage:
+    - keyCertSign
+    key_usage_critical: true
+  register: ca_csr
+  when: not ca_cert.stat.exists
+
+- name: Create self-signed CA certificate from CSR
+  become: true
+  community.crypto.x509_certificate:
+    path: "{{cert_dir}}/ca.crt"
+    csr_content: "{{ ca_csr.csr }}"
+    privatekey_path: "{{key_dir}}/ca.key"
+    provider: selfsigned
+  when: not ca_cert.stat.exists
+
+# Use CA to sign server certificate
+- name: Create private key for new server certificate
+  become: true
+  community.crypto.openssl_privatekey:
+    path: "{{key_dir}}/server.key"
+    size: 2048
+    type: RSA
+    group: 'ssl-cert'
+    mode: '0740'
+  run_once: true
+
+- name: Check if certificate exists
+  stat:
+    path: "{{cert_dir}}/server.crt"
+  register: file_status
+
+- name: Create certificate signing request (CSR) for server certificate
+  become: true
+  community.crypto.openssl_csr_pipe:
+    privatekey_path: "{{key_dir}}/server.key"
+    common_name: "{{ common_name }}"
+    subject_alt_name:
+    - "DNS:{{ common_name }}"
+  run_once: true
+  register: csr
+  when: not file_status.stat.exists
+
+- name: Check whether server certificate expired
+  community.crypto.x509_certificate_info:
+    path: "{{cert_dir}}/server.crt"
+  register: cert_info
+  when: file_status.stat.exists
+
+- name: Create server certificate signed by CA from CSR
+  become: true
+  community.crypto.x509_certificate:
+    path: "{{cert_dir}}/server.crt"
+    csr_content: "{{ csr.csr }}"
+    provider: ownca
+    ownca_path: "{{cert_dir}}/ca.crt"
+    ownca_privatekey_path: "{{key_dir}}/ca.key"
+    ownca_not_after: +{{ cert_length_days }}d
+    ownca_not_before: "-1d" # valid since yesterday
+  when: (cert_info.expired is defined and cert_info.expired) or (not file_status.stat.exists)
