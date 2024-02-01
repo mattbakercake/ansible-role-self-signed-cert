@@ -7,7 +7,7 @@ for testing or local services
 
 see `defaults\main.yaml`
 
-`cert_dir` - certificates directory
-`key_dir` - private key directory
-`common_name` - CN for certificate to be assigned to
-`cert_length_days` - duration of certificate (days)
+* `cert_dir` - certificates directory
+* `key_dir` - private key directory
+* `common_name` - CN for certificate to be assigned to
+* `cert_length_days` - duration of certificate (days)
