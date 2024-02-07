@@ -1,3 +1,10 @@
+#dependencies
+- name: install dependencies
+  become: true
+  apt:
+    name:
+    - python3-cryptography
+
 # access group
 - name: Ensure group "ssl-cert" exists
   become: true
