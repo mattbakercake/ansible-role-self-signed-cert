@@ -41,7 +41,7 @@
 - name: check whether CA certificate exists
   stat:
     path: "{{cert_dir}}/ca.crt"
-  register: ca_cert
+  register: ca_cert_file
 
 - name: Create certificate signing request (CSR) for CA certificate
   become: true
@@ -56,7 +56,7 @@
     - keyCertSign
     key_usage_critical: true
   register: ca_csr
-  when: not ca_cert.stat.exists
+  when: not ca_cert_file.stat.exists
 
 - name: Create self-signed CA certificate from CSR
   become: true
@@ -65,7 +65,7 @@
     csr_content: "{{ ca_csr.csr }}"
     privatekey_path: "{{key_dir}}/ca.key"
     provider: selfsigned
-  when: not ca_cert.stat.exists
+  when: not ca_cert_file.stat.exists
 
 # Use CA to sign server certificate
 - name: Create private key for new server certificate
